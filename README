@@ -1,0 +1,6 @@
+# The following is a basic search engine built as a starting point for the
+# entry to the contest at the end of the first run of Udacity's
+# CS101 course: Build a Search Engine
+#
+#Original crawler source from jksdrum, with permission granted to post on GitHub.
+#Modification by Elwood to have it play nicer on multiple OS's and Python versions, as well as a few slight tweeks.
