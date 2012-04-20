@@ -1,14 +1,25 @@
 #Based on core code provided in the Udacity forums by Jksdrum.
+#
 #The changes/enhancements follow:
+#
+#The real biggy, Named Entity Extraction.
+#From wikipedia on NEE:seeks to locate and classify atomic elements in text into predefined categories 
+#such as the names of persons, organizations, locations, expressions of times, quantities, monetary 
+#values, percentages, etc.
+#This impliments a suggestion of other words you might be interested in searching for based on the
+#most frequent entities in the pages returned.
+#The logic is this: Of all the pages matching the search query take all the named entities 
+#(names, places, locations, etc) in them, order them by most frequent, and return the top 5.
+#So a search for 'president' would/should also suggest 'clinton' ,'bush', 'obama', 'company'
 #
 #Respects robots.txt to try and be a good net citizen, even though there is no offical robots.txt standard
 #
 #Useragent specified so crawler can be banned by Website admins if it is too agressive, and so they
 #can get stats to see who is on their site and if it is a bot or not. 
 #
-#Provides logging of crawl for analytics and eyecandy (googleearth display)
+#Provides logging of crawl for analytics and eyecandy (googleearth display)*not completed in time*
 #
-#Converts strings to ascii to avoid utf8 encoding issues (especially code posted from MS word was 
+#Converts strings to ascii to avoid utf8 encoding issues (especially as code posted from MS word was 
 #encounted, it would crash the index as multiwords links by 'invisible' characters would be stored)
 #
 #Converts strings to lowercase before adding them to the index, making searching non case sensitive
@@ -16,8 +27,8 @@
 #Real world (web) problems. Not all sites have nice (valid) html. Very few do, and it would crash 
 #the vanilla version from class.
 #To overcome issues with tags being malformed on real web pages, and many vailid a href tags being 
-#ignored, it utalises a modified crawl_web function using BeautifySoup to extract html entites, 
-#originally written by David Harris (Released under a Creative Commons License)
+#ignored, it utalises a modified crawl_web function from code originally written by David Harris 
+(Released under a Creative Commons License) using BeautifulSoup.
 #
 #Stopwords. There are many words in english that are just common joining words, such as "why",
 #"how", "our", etc, that add little value (IMHO) to the index for most searches. Who searches 
@@ -39,11 +50,11 @@
 #and should be extened to allow regexes and wildcards to be used.
 #
 #thanks goes to Addle on IRC who helped with the dictionary structures in nee_add_to_index when
-#I had writers block (my brain was stuck in an infinite loop)
-#
+#I had writers block (my brain was stuck in an infinite loop) and a few other debugging stints. 
+#If we win the competition, he can have the trip, not me.
 
 #to do
-#Named entity extraction
+#save the neeindex to disk, sa me as the other index
 #split crawl and search into 2 seperate programs so they car run independntly
 #store last crawled page so crawls can be re-run for current position
 #cgi interface
@@ -60,7 +71,6 @@ import robotparser
 import urlparse
 from bs4 import BeautifulSoup
 import html5lib
-# in a true webcrawler you should not use re instead use a DOM parser
 import re
 # for sorting a nested list
 from operator import itemgetter
@@ -100,17 +110,7 @@ def union(p,q):
 			p.append(e)
 			cnt += 1
 	return cnt
-#def get_all_links(page):
-#original does not handle relative links
-#	links = []
-#	while True:
-#		url,endpos = get_next_target(page)
-#		if url:
-#			links.append(url)
-#			page = page[endpos:]
-#		else:
-#			break
-#	return links
+
 def get_all_links(soup, page):
 	links = []
 	last = page.find('/', 8)
@@ -168,12 +168,10 @@ def InWhiteList(page):
 	#if the whitelist exists, action it, otherwise return true for all domains
 	#so make sure the whitelist does not disappear....	
         try:
-                print page
                 file=open('whitelist.txt','r')
                 whitelist=file.readlines()
                 file.close
                 for line in whitelist:
-                        print line
                         if line.rstrip('\n') in page:
                                 return True
                 return False
@@ -199,22 +197,14 @@ def IsNotStopWord(word):
 def nee_add_to_index(neeindex, neestring, url):
         if url in neeindex:
                 entry = neeindex[url]
-                print entry
                 entry.append(neestring)
         else:
                 neeindex[url] = [neestring]
 
 def named_entity_extraction(neeindex,url,text):
-#	for sent in nltk.sent_tokenize(text):
-#		for chunk in nltk.ne_chunk(nltk.pos_tag(nltk.word_tokenize(sent))):
-#			if hasattr(chunk, 'node'):
-#				print chunk.node, ' '.join(c[0] for c in chunk.leaves())
-
-	print "in named entity extraction"
-	print "neeindex:"
-	print neeindex
-	print "url="+url
-	print "==="
+	#print "in named entity extraction"
+	#print "url="+url
+	#print "==="
 	list=[]
 	a = nltk.word_tokenize(text)
 	b = nltk.pos_tag(a)
@@ -237,31 +227,19 @@ def of_interest(alist):
 	l = sorted(l,key=get_score)
 	l.reverse()
 	n=len(l)
-	print n
 	if n>5:
         	n=5 #limit the number of suggestions to 5
 	newlist=[]
 	for i in xrange(n):
-		print l[i][0]
+		#print l[i][0]
 		newlist.append(l[i][0])
-	print newlist
-	print ", ".join(newlist)
+	#print ", ".join(newlist)
 	return (", ".join(newlist))
 
 
 
 def add_page_to_index_re(index,url,content):
 	i = 0
-	# it is not a good idea to use regular expression to parse html
-	# i did this just to give a quick and dirty result
-	# to parse html pages in practice you should use a DOM parser
-#	regex = re.compile('(?<!script)[>](?![\s\#\'-<]).+?[<]')
-#	for words in regex.findall(content):
-#		word_list = split_string(words, """ ,"!-.()<>[]{};:?!-=`&""")
-#		for word in word_list:
-#			add_to_index(index,word,url)
-#			i += 1
-#	return i
 	words = split_string(content, "!@#$%^&*(),./?><[]}\"{':;=-~`|\\ \n")
 	counter = 0
 	for word in words:
@@ -289,45 +267,6 @@ def roboize(page):
 
 
 def crawl_web(seed,max_pages=10,max_depth=1):
-#	root = seed
-#	tocrawl = [seed]
-#	depth = [0]
-#	crawled = []
-#	index = {}
-#	graph = {}
-#	while tocrawl and len(crawled) < max_pages:
-#		page = tocrawl.pop()
-#		d = depth.pop()
-#		print "to crawl " + page
-#		if page not in crawled:
-#			print "page not in crawled"
-#			page = format_url(root,page)
-#			#content = get_page(page)
-#			try:
-#				soup=BeautifulSoup(get_page(page), "html5lib")
-#				soup.prettify()
-#			except:
-#				soup=''
-#			if soup:
-#				print "valid soup"
-#				content=soup.get_text()
-#				success = add_page_to_index_re(index,page,content)
-#				#outlinks = get_all_links(content)
-#				outlinks = get_all_links(soup, page)
-#			else:
-#				print "no soup for you"
-#				outlinks=[]
-#			print outlinks
-#			for link in outlinks:
-#				depth.append(d+1)
-#			graph[page] = outlinks
-#			if d != max_depth:
-#				cnt = union(tocrawl,outlinks)
-#				for i in range(cnt):
-#					depth.append(d+1)
-#			crawled.append(page)
-#			print crawled #debug
-#	return index, graph
 
 	tocrawl = [seed]
 	crawled = {}
@@ -341,7 +280,6 @@ def crawl_web(seed,max_pages=10,max_depth=1):
 	while tocrawl and num_pages < max_pages:
 		page = tocrawl.pop(0)
 		page = page.lower()
-		print "trying: " + page #debug
 		if page[len(page)-1] == '/':
 			page = page[:len(page)-1]
 		not_twitter = True
@@ -353,7 +291,6 @@ def crawl_web(seed,max_pages=10,max_depth=1):
                 
 		current_depth = depth.pop(0)
 		robot = robotparser.RobotFileParser()
-		print "robots.txt" #debug
 		robot.set_url(roboize(page))
 		try:
 			robot.read()
@@ -365,7 +302,7 @@ def crawl_web(seed,max_pages=10,max_depth=1):
 			whitelistallowed = True
 		else:
 			whitelistallowed = False
-			print "whitelist not allowed"
+			print "whitelist does not allow that url"
 		if page not in crawled and current_depth <= max_depth and num_pages < max_pages and allowed and whitelistallowed and not_twitter:
 			num_pages += 1
 			try:
@@ -380,7 +317,7 @@ def crawl_web(seed,max_pages=10,max_depth=1):
 				outlinks = get_all_links(soup, page)
 				add_page_to_index_re(index, page, content)
 				named_entity_extraction(neeindex,page,content)
-				print neeindex
+				#print neeindex
 			else:
 				outlinks = []
 			for link in outlinks:
@@ -390,7 +327,7 @@ def crawl_web(seed,max_pages=10,max_depth=1):
 			union(tocrawl, outlinks)
 			crawled[page] = True
 #	return index, graph, cache
-	return index, graph
+	return neeindex, index, graph
 
 
 
@@ -564,7 +501,7 @@ if __name__ == "__main__":
 		return data
 	def execute_cmd(c, neeindex, index, graph, ranks, searches):
 		if c == '1':
-			index, graph = execute_start_crawl(index)
+			neeindex, index, graph = execute_start_crawl(index)
 			ranks = compute_ranks(graph)
 			print "    Crawl finished.  Index has {0} items.".format(len(index))
 			raw_input("    Press Enter")
@@ -619,10 +556,12 @@ if __name__ == "__main__":
 			else:
 				ret += "        '{0}' appears in the following urls:\n".format(realword)
 				for e in l:
-					print e	
-					topindex.append(neeindex[e])
-					
+					if e[1] in neeindex: 	
+						topindex.extend(neeindex[e[1]])
+				#print topindex
+				print "other terms that may be relevant to your query:"	
 				print of_interest(topindex)		
+				print "results:"
 				for e in l:
 					ret += "            {0}\n            score = {1}\n".format(e[1],e[0])
 										
